@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+IPMIHOST=192.168.1.100
+IPMIUSER=operator
+IPMIPW=1234
+IPMIEK=0000000000000000000000000000000000000000
+
+FANSPEEDHEX="0xA"
+MAXTEMP=60
+HYSTERESIS=5
+
+INTERVAL=5
+
+function ipmi() {
+        ipmitool -I lanplus -H "$IPMIHOST" -U "$IPMIUSER" -P "$IPMIPW" -y "$IPMIEK" "$@"
+}
+
+function auto_fans() {
+	ipmi raw 0x30 0x30 0x01 0x01
+}
+
+function manual_fans() {
+	ipmi raw 0x30 0x30 0x01 0x00 
+	ipmi raw 0x30 0x30 0x02 0xff "$FANSPEEDHEX"
+}
+
+function emergency() {
+	# insert here what should happen when the sensor readings fail.
+	auto_fans
+	exit 1
+}
+
+function d_start() {
+	while sleep $INTERVAL
+	do
+
+		if ! TEMPS=$(ipmi sdr type temperature | grep -vi inlet | grep -vi exhaust | grep -Po '\d{2,3}' 2>&1); then
+			# Emergency
+			echo "problem with reading the temperature"
+			emergency
+		fi
+		
+		HIGHTEMP=0
+		LOWTEMP=1
+		MSG="TEMPS"
+		for TEMP in $TEMPS; do
+
+			MSG+=" $TEMP"
+
+			if [[ $TEMP > $MAXTEMP ]]; then
+				HIGHTEMP=1
+			fi
+			if [[ $TEMP > $((MAXTEMP - HYSTERESIS)) ]]; then
+				LOWTEMP=0
+			fi
+		done
+
+		echo $MSG
+
+		if [[ $HIGHTEMP == 1 ]]; then
+			#Automatic fan control
+			auto_fans
+		elif [[ $LOWTEMP == 1 ]]; then
+			#Manual fan control
+			manual_fans
+		fi
+
+	done
+}
+
+function d_stop() {
+	emergency
+}
+
+
+case "$1" in
+	start)
+		d_start
+	;;
+	stop)
+		d_stop
+	;;
+	restart)
+		d_restart
+	;;
+	status)
+		d_status
+	;;
+*)
+esac
