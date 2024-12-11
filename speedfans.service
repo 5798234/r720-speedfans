@@ -11,8 +11,8 @@ Type=simple
 # Another Type: forking
 User=root
 WorkingDirectory=/home/marcin
-ExecStart=/home/marcin/speedfans start
-ExecStop=/home/marcin/speedfans stop
+ExecStart=/home/user/speedfans start
+ExecStop=/home/user/speedfans stop
 Restart=on-failure
 # Other restart options: always, on-abort, etc
 
